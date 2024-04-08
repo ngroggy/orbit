@@ -110,18 +110,20 @@ def infer_state_machine(
     elif state == PickSmState.APPROACH_ABOVE_OBJECT:
         des_ee_pose[tid] = wp.transform_multiply(offset[tid], object_pose[tid])
         gripper_state[tid] = GripperState.OPEN
-        # TODO: error between current and desired ee pose below threshold
-        # wait for a while
-        if sm_wait_time[tid] >= PickSmWaitTime.APPROACH_OBJECT:
+        # wait until error between current and desired ee position is below threshold
+        diff_trans = wp.transform_get_translation((ee_pose[tid] - des_ee_pose[tid]))
+        if wp.max(diff_trans)<0.01 and wp.min(diff_trans)>-0.01:
             # move to next state and reset wait time
             sm_state[tid] = PickSmState.APPROACH_OBJECT
             sm_wait_time[tid] = 0.0
     elif state == PickSmState.APPROACH_OBJECT:
         des_ee_pose[tid] = object_pose[tid]
         gripper_state[tid] = GripperState.OPEN
-        # TODO: error between current and desired ee pose below threshold
-        # wait for a while
-        if sm_wait_time[tid] >= PickSmWaitTime.APPROACH_OBJECT:
+        # wait until error between current and desired ee pose is below threshold
+        diff_trans = wp.transform_get_translation((ee_pose[tid] - des_ee_pose[tid]))
+        rot = wp.transform_get_rotation(ee_pose[tid])
+        des_rot = wp.transform_get_rotation(des_ee_pose[tid])
+        if wp.max(diff_trans)<0.01 and wp.min(diff_trans)>-0.01 and wp.dot(rot, des_rot) > 0.99:
             # move to next state and reset wait time
             sm_state[tid] = PickSmState.GRASP_OBJECT
             sm_wait_time[tid] = 0.0
@@ -136,9 +138,11 @@ def infer_state_machine(
     elif state == PickSmState.LIFT_OBJECT:
         des_ee_pose[tid] = des_object_pose[tid]
         gripper_state[tid] = GripperState.CLOSE
-        # TODO: error between current and desired ee pose below threshold
-        # wait for a while
-        if sm_wait_time[tid] >= PickSmWaitTime.LIFT_OBJECT:
+        # wait until error between current and desired ee pose is below threshold
+        diff_trans = wp.transform_get_translation((ee_pose[tid] - des_ee_pose[tid]))
+        rot = wp.transform_get_rotation(ee_pose[tid])
+        des_rot = wp.transform_get_rotation(des_ee_pose[tid])
+        if wp.max(diff_trans)<0.01 and wp.min(diff_trans)>-0.01 and wp.dot(rot, des_rot) > 0.99:
             # move to next state and reset wait time
             sm_state[tid] = PickSmState.LIFT_OBJECT
             sm_wait_time[tid] = 0.0
