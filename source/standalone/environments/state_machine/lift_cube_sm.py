@@ -93,6 +93,7 @@ def infer_state_machine(
     des_ee_pose: wp.array(dtype=wp.transform),
     gripper_state: wp.array(dtype=float),
     offset: wp.array(dtype=wp.transform),
+    finger_joint_distance: wp.array(dtype=float),
 ):
     # retrieve thread id
     tid = wp.tid()
@@ -133,8 +134,12 @@ def infer_state_machine(
         # wait for a while
         if sm_wait_time[tid] >= PickSmWaitTime.GRASP_OBJECT:
             # move to next state and reset wait time
-            sm_state[tid] = PickSmState.LIFT_OBJECT
-            sm_wait_time[tid] = 0.0
+            if finger_joint_distance[tid] >= 0.045 and finger_joint_distance[tid] < 0.047: # define macro?
+                sm_state[tid] = PickSmState.LIFT_OBJECT
+                sm_wait_time[tid] = 0.0
+            else:
+                sm_state[tid] = PickSmState.APPROACH_OBJECT
+                sm_wait_time[tid] = 0.0
     elif state == PickSmState.LIFT_OBJECT:
         des_ee_pose[tid] = des_object_pose[tid]
         gripper_state[tid] = GripperState.CLOSE
@@ -144,8 +149,12 @@ def infer_state_machine(
         des_rot = wp.transform_get_rotation(des_ee_pose[tid])
         if wp.max(diff_trans)<0.01 and wp.min(diff_trans)>-0.01 and wp.dot(rot, des_rot) > 0.99:
             # move to next state and reset wait time
-            sm_state[tid] = PickSmState.LIFT_OBJECT
-            sm_wait_time[tid] = 0.0
+            if finger_joint_distance[tid] >= 0.045 and finger_joint_distance[tid] < 0.047:
+                sm_state[tid] = PickSmState.LIFT_OBJECT
+                sm_wait_time[tid] = 0.0
+            else:
+                sm_state[tid] = PickSmState.APPROACH_OBJECT
+                sm_wait_time[tid] = 0.0
     # increment wait time
     sm_wait_time[tid] = sm_wait_time[tid] + dt[tid]
 
@@ -206,17 +215,19 @@ class PickAndLiftSm:
         self.sm_state[env_ids] = 0
         self.sm_wait_time[env_ids] = 0.0
 
-    def compute(self, ee_pose: torch.Tensor, object_pose: torch.Tensor, des_object_pose: torch.Tensor):
+    def compute(self, ee_pose: torch.Tensor, object_pose: torch.Tensor, des_object_pose: torch.Tensor, finger_joint_positions: torch.Tensor):
         """Compute the desired state of the robot's end-effector and the gripper."""
         # convert all transformations from (w, x, y, z) to (x, y, z, w)
         ee_pose = ee_pose[:, [0, 1, 2, 4, 5, 6, 3]]
         object_pose = object_pose[:, [0, 1, 2, 4, 5, 6, 3]]
         des_object_pose = des_object_pose[:, [0, 1, 2, 4, 5, 6, 3]]
+        finger_joint_distance = finger_joint_positions.sum(dim=-1).reshape(1,1)
 
         # convert to warp
         ee_pose_wp = wp.from_torch(ee_pose.contiguous(), wp.transform)
         object_pose_wp = wp.from_torch(object_pose.contiguous(), wp.transform)
         des_object_pose_wp = wp.from_torch(des_object_pose.contiguous(), wp.transform)
+        finger_joint_distance_wp = wp.from_torch(finger_joint_distance.contiguous(), wp.float32).flatten()
 
         # run state machine
         wp.launch(
@@ -230,8 +241,9 @@ class PickAndLiftSm:
                 object_pose_wp,
                 des_object_pose_wp,
                 self.des_ee_pose_wp,
-                self.des_gripper_state_wp,
+                self.des_gripper_state_wp, # States for the pick state machine, e.g. rest, approach above object etc.
                 self.offset_wp,
+                finger_joint_distance_wp,
             ],
             device=self.device,
         )
@@ -275,6 +287,7 @@ def main():
             ee_frame_sensor = env.unwrapped.scene["ee_frame"]
             tcp_rest_position = ee_frame_sensor.data.target_pos_w[..., 0, :].clone() - env.unwrapped.scene.env_origins
             tcp_rest_orientation = ee_frame_sensor.data.target_quat_w[..., 0, :].clone()
+            finger_joint_positions = env.unwrapped.scene["robot"].data.joint_pos[..., 0, 7:].clone()
             # -- object frame
             object_data: RigidObjectData = env.unwrapped.scene["object"].data
             object_position = object_data.root_pos_w - env.unwrapped.scene.env_origins
@@ -286,6 +299,7 @@ def main():
                 torch.cat([tcp_rest_position, tcp_rest_orientation], dim=-1),
                 torch.cat([object_position, desired_orientation], dim=-1),
                 torch.cat([desired_position, desired_orientation], dim=-1),
+                finger_joint_positions,
             )
 
             # reset state machine
