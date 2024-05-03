@@ -67,6 +67,10 @@ x-default-orbit-volumes:
     - type: volume
       source: orbit-data
       target: /workspace/orbit/data_storage
+    # Custom volumes
+    - type: bind
+      source: ../../orbit.robust_grasping
+      target: /workspace/orbit/orbit.robust_grasping
 
 x-default-orbit-deploy:
   &default-orbit-deploy

@@ -170,11 +170,15 @@ case $mode in
     start)
         echo "[INFO] Building the docker image and starting the container orbit-$container_profile in the background..."
         pushd ${SCRIPT_DIR} > /dev/null 2>&1
+        # copy the required directories
+        rsync -av --progress ../../orbit.robust_grasping ../ --exclude .git --exclude '*/logs/'
         # We have to build the base image as a separate step,
         # in case we are building a profile which depends
         # upon
         docker compose --file docker-compose.yaml --env-file .env.base build orbit-base
         docker compose --file docker-compose.yaml $add_profiles $add_envs up --detach --build --remove-orphans
+        rm -rf ./orbit.robust_grasping
+        
         popd > /dev/null 2>&1
         ;;
     enter)
@@ -253,6 +257,9 @@ case $mode in
         # Sync orbit code
         echo "[INFO] Syncing orbit code..."
         rsync -rh  --exclude="*.git*" --filter=':- .dockerignore'  /$SCRIPT_DIR/.. $CLUSTER_LOGIN:$CLUSTER_ORBIT_DIR
+        # sync robust_grasping 
+        echo "[INFO] Syncing robust_grasping ..."
+        rsync -rh  --exclude="*.git*" --exclude="logs" /$SCRIPT_DIR/../../orbit.robust_grasping  $CLUSTER_LOGIN:$CLUSTER_ORBIT_DIR
         # execute job script
         echo "[INFO] Executing job script..."
         # check whether the second argument is a profile or a job argument

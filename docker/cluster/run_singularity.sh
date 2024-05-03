@@ -16,7 +16,8 @@ setup_directories() {
         "${CLUSTER_ISAAC_SIM_CACHE_DIR}/cache/computecache" \
         "${CLUSTER_ISAAC_SIM_CACHE_DIR}/logs" \
         "${CLUSTER_ISAAC_SIM_CACHE_DIR}/data" \
-        "${CLUSTER_ISAAC_SIM_CACHE_DIR}/documents"; do
+        "${CLUSTER_ISAAC_SIM_CACHE_DIR}/documents" \
+        "${CLUSTER_ORBIT_DIR}/orbit.robust_grasping"; do
         if [ ! -d "$dir" ]; then
             mkdir -p "$dir"
             echo "Created directory: $dir"
@@ -41,6 +42,10 @@ setup_directories
 # copy all cache files
 cp -r $CLUSTER_ISAAC_SIM_CACHE_DIR $TMPDIR
 
+# create robust grasping log directory
+mkdir -p "$CLUSTER_ORBIT_DIR/orbit.robust_grasping/logs"
+touch "$CLUSTER_ORBIT_DIR/orbit.robust_grasping/logs/.keep"
+
 # copy orbit source code
 mkdir -p "$CLUSTER_ORBIT_DIR/logs"
 touch "$CLUSTER_ORBIT_DIR/logs/.keep"
@@ -62,7 +67,9 @@ singularity exec \
     -B $TMPDIR/docker-isaac-sim/data:${DOCKER_USER_HOME}/.local/share/ov/data:rw \
     -B $TMPDIR/docker-isaac-sim/documents:${DOCKER_USER_HOME}/Documents:rw \
     -B $TMPDIR/orbit:/workspace/orbit:rw \
+    -B $TMPDIR/orbit/orbit.robust_grasping:/workspace/orbit/orbit.robust_grasping:rw \
     -B $CLUSTER_ORBIT_DIR/logs:/workspace/orbit/logs:rw \
+    -B $CLUSTER_ORBIT_DIR/orbit.robust_grasping/logs:/workspace/orbit/orbit.robust_grasping/logs:rw \
     --nv --writable --containall $TMPDIR/$1.sif \
     bash -c "export ORBIT_PATH=/workspace/orbit && cd /workspace/orbit && /isaac-sim/python.sh ${CLUSTER_PYTHON_EXECUTABLE} ${@:2}"
 

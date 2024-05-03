@@ -28,6 +28,8 @@ ARG DOCKER_USER_HOME
 # Set environment variables
 ENV LANG=C.UTF-8
 ENV DEBIAN_FRONTEND=noninteractive
+ENV ORBIT_PATH=/workspace/orbit
+ENV ORBIT_APPTRONIK_ROOT_DIR=${ORBIT_PATH}/orbit.robust_grasping
 
 # Install dependencies and remove cache
 RUN --mount=type=cache,target=/var/cache/apt \
@@ -70,6 +72,10 @@ RUN touch /bin/nvidia-smi && \
 # use pip caching to avoid reinstalling large packages
 RUN --mount=type=cache,target=${DOCKER_USER_HOME}/.cache/pip \
     ${ORBIT_PATH}/orbit.sh --install --extra
+
+# installing custom packages
+RUN ${ORBIT_PATH}/orbit.sh -p -m pip install --upgrade pip && \
+    ${ORBIT_PATH}/orbit.sh -p -m pip install -e ${ORBIT_PATH}/orbit.robust_grasping/
 
 # aliasing orbit.sh and python for convenience
 RUN echo "alias orbit=${ORBIT_PATH}/orbit.sh" >> ${HOME}/.bashrc && \
